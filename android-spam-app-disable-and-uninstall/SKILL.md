@@ -230,15 +230,26 @@ If ADB cannot reliably change a vendor setting, provide a manual route as a fall
 - Settings > Browser > Download / Security settings > turn off APK auto install.
 - Settings > Quick apps > Manage > disable service when available.
 
-### 7. Finish Safely
+### 7. Ask Whether To Continue Or Finish
 
-Tell the user to close:
+Do not tell the user to close wireless debugging, USB debugging, or Developer options immediately after closing install routes if there are still possible ADB cleanup steps. Closing debugging ends the Agent's ability to continue uninstalling or disabling unwanted apps.
+
+After an install-route step, summarize what was changed and present these choices in Chinese:
+
+```text
+选项 A：好的，我已完成我的工作，现在就去关闭无线调试、USB 调试和开发者选项，然后重启手机。
+选项 B：好的，继续进入删除垃圾应用。
+```
+
+If the user chooses option A, or clearly says the cleanup is finished, then tell the user to close:
 
 - Wireless debugging.
 - USB debugging.
 - Developer options.
 
 Then ask the user to reboot the phone once.
+
+If the user chooses option B, keep ADB available and continue with confirmed junk-app deletion or app-package disabling. Do not mention closing debugging again until there are no remaining ADB actions or the user chooses to finish.
 
 End with a concise summary:
 

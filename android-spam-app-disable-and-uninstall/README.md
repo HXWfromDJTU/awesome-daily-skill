@@ -10,13 +10,19 @@
 4. 先把“未来安装入口”列成带序号的清单，让用户确认禁用哪些安装权限。
 5. 对浏览器、应用商店、文件管理器、快应用这类入口，默认只禁用 APK 安装权限，不引导删除 App 本体。
 6. 再处理家人明确确认不要的垃圾 App。
-7. 收尾时关闭 USB 调试、无线调试和开发者选项。
+7. 只有在用户选择“完成清理”时，才引导关闭 USB 调试、无线调试和开发者选项；如果用户要继续删除垃圾 App，就保持 ADB 可用。
 
 ## 适用 Agent
 
 Codex 可以使用这个 Skill。其他任意支持 Skill / 自定义工作流 / 从 GitHub 仓库安装能力的 Agent 也可以使用，比如 Workbuddy、Qclaw、Claude、马维斯等。
 
 ## 推荐安装方式
+
+这个 Skill 在仓库中的目录地址：
+
+```text
+https://github.com/HXWfromDJTU/awesome-daily-skill/tree/main/android-spam-app-disable-and-uninstall
+```
 
 直接对 Agent 说：
 
@@ -60,6 +66,13 @@ https://developer.android.com/tools/releases/platform-tools
 ```
 
 这里的“禁用”指禁用 APK 安装权限，也就是执行 `REQUEST_INSTALL_PACKAGES ignore`，不是删除浏览器、应用商店或文件管理器本体。
+
+禁用安装入口后，不要默认提示用户马上关闭 USB 调试、无线调试和开发者选项。应先让用户选择：
+
+```text
+选项 A：好的，我已完成我的工作，现在就去关闭无线调试、USB 调试和开发者选项，然后重启手机。
+选项 B：好的，继续进入删除垃圾应用。
+```
 
 内置脚本：
 
