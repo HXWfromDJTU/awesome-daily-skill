@@ -10,7 +10,7 @@
 4. 先把“未来安装入口”列成带序号的清单，让用户确认禁用哪些安装权限。
 5. 对浏览器、应用商店、文件管理器、快应用这类入口，默认只禁用 APK 安装权限，不引导删除 App 本体。
 6. 再处理家人明确确认不要的垃圾 App。
-7. 只有在用户选择“完成清理”时，才引导关闭 USB 调试、无线调试和开发者选项；如果用户要继续删除垃圾 App，就保持 ADB 可用。
+7. 清理过程中保持 ADB 调试可用，全部结束后再关闭 USB 调试、无线调试和开发者选项。
 
 ## 适用 Agent
 
@@ -48,33 +48,3 @@ Skill 目录：android-spam-app-disable-and-uninstall
 官方 ADB 下载页：
 
 https://developer.android.com/tools/releases/platform-tools
-
-## 重要提醒
-
-这个 Skill 包含删除、停用和关闭安装入口命令，但不会要求 Agent 自动执行。Agent 必须先给出清单、命令和影响说明，得到用户确认后再执行。
-
-对安装入口的默认交互是：
-
-```text
-1. com.android.browser - 系统浏览器不能安装 APK
-2. com.android.chrome - Chrome 不能安装 APK
-3. com.android.filemanager - 文件管理器不能安装 APK
-
-你可以回复：
-- 确认禁用全部
-- 确认禁用 1,3,5
-```
-
-这里的“禁用”指禁用 APK 安装权限，也就是执行 `REQUEST_INSTALL_PACKAGES ignore`，不是删除浏览器、应用商店或文件管理器本体。
-
-禁用安装入口后，不要默认提示用户马上关闭 USB 调试、无线调试和开发者选项。应先让用户选择：
-
-```text
-选项 A：好的，我已完成我的工作，现在就去关闭无线调试、USB 调试和开发者选项，然后重启手机。
-选项 B：好的，继续进入删除垃圾应用。
-```
-
-内置脚本：
-
-- `scripts/collect_android_inventory.py`：只读盘点，不会删除、停用或修改手机里的任何 App。
-- `scripts/block_install_routes.py`：默认 dry-run，只列出将关闭的安装入口；用户确认后加 `--apply`，才会执行 `adb shell appops set <包名> REQUEST_INSTALL_PACKAGES ignore`。支持 `--select 1,3,5` 只禁用用户确认的编号。
