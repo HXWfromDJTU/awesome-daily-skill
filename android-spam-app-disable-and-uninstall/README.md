@@ -8,7 +8,7 @@
 2. 标出每个 App 的安装来源。
 3. 高亮来路不明、浏览器下载、文件管理器安装、第三方市场安装的 App。
 4. 让用户和家人确认哪些要删、哪些要留。
-5. 再执行删除、当前用户移除、停用或关闭安装入口。
+5. 再执行删除、当前用户移除、停用，或通过 ADB 直接关闭安装入口。
 6. 收尾时关闭 USB 调试、无线调试和开发者选项。
 
 ## 适用 Agent
@@ -44,6 +44,9 @@ https://developer.android.com/tools/releases/platform-tools
 
 ## 重要提醒
 
-这个 Skill 包含删除和停用命令，但不会要求 Agent 自动执行。Agent 必须先给出清单、命令和影响说明，得到用户确认后再执行。
+这个 Skill 包含删除、停用和关闭安装入口命令，但不会要求 Agent 自动执行。Agent 必须先给出清单、命令和影响说明，得到用户确认后再执行。
 
-内置脚本 `scripts/collect_android_inventory.py` 只做只读盘点，不会删除、停用或修改手机里的任何 App。
+内置脚本：
+
+- `scripts/collect_android_inventory.py`：只读盘点，不会删除、停用或修改手机里的任何 App。
+- `scripts/block_install_routes.py`：默认 dry-run，只列出将关闭的安装入口；用户确认后加 `--apply`，才会执行 `adb shell appops set <包名> REQUEST_INSTALL_PACKAGES ignore`。

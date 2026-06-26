@@ -23,10 +23,11 @@ This Skill can be used by Codex or any other Agent that supports Skills, custom 
 ## Bundled Resources
 
 - Use `scripts/collect_android_inventory.py` to collect a read-only inventory when Python is available.
+- Use `scripts/block_install_routes.py` to generate or apply ADB commands that set install-route packages to `REQUEST_INSTALL_PACKAGES ignore`.
 - Read `references/adb-command-reference.md` when you need exact command templates for uninstalling, disabling, restoring, appops, and verification.
 - Read `references/vendor-package-candidates.md` when you need common package candidates for domestic Android vendors and third-party app stores.
 
-The script is read-only. It must never uninstall, disable, or modify apps.
+`collect_android_inventory.py` is read-only. `block_install_routes.py` is dry-run by default and only modifies the phone when the user confirms and you pass `--apply`.
 
 ## Workflow
 
@@ -159,18 +160,40 @@ On Windows PowerShell:
 adb shell pm list packages --user 0 | findstr <package>
 ```
 
-### 6. Close Future Install Routes
+### 6. Close Future Install Routes With Agent Commands
 
-Read `references/vendor-package-candidates.md` and first check which candidate packages actually exist on the phone. Do not run commands for packages that are not present.
+Do not primarily tell the user to tap through phone settings. Let the Agent close install routes through ADB when possible.
 
-For browsers, file managers, downloaders, chat apps, cloud drives, third-party stores, and quick-app services, first check and close APK installation permission:
+First generate a dry-run plan:
+
+```bash
+python3 scripts/block_install_routes.py
+```
+
+Show the user the packages and commands it plans to run. Explain that this does not delete apps; it only blocks those apps from installing APK files.
+
+After the user confirms, apply it:
+
+```bash
+python3 scripts/block_install_routes.py --apply
+```
+
+For one-off manual command generation, use:
 
 ```bash
 adb shell appops get <package> REQUEST_INSTALL_PACKAGES
 adb shell appops set <package> REQUEST_INSTALL_PACKAGES ignore
 ```
 
-For confirmed unwanted app stores or quick-app services:
+Then verify:
+
+```bash
+adb shell appops get <package> REQUEST_INSTALL_PACKAGES
+```
+
+Expected result should include `ignore`.
+
+Only after the install permission is blocked, handle confirmed unwanted app stores or quick-app services:
 
 ```bash
 adb shell am force-stop <package>
@@ -183,7 +206,7 @@ If disable fails and the user confirms, use current-user uninstall:
 adb shell pm uninstall --user 0 <package>
 ```
 
-If ADB cannot reliably change a vendor setting, provide a manual route:
+If ADB cannot reliably change a vendor setting, provide a manual route as a fallback only:
 
 - Settings > Apps > Special app access > Install unknown apps > turn off all unnecessary apps.
 - Settings > App store > Settings > Auto update / Auto download > off.

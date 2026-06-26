@@ -31,6 +31,8 @@ adb shell dumpsys package <package> | findstr installer
 
 ## Unknown APK Install Permission
 
+This should be done by the Agent with ADB where possible. Do not make the user manually tap settings unless the ADB command fails or the vendor blocks appops changes.
+
 Check:
 
 ```bash
@@ -48,6 +50,15 @@ Restore default:
 ```bash
 adb shell appops set <package> REQUEST_INSTALL_PACKAGES default
 ```
+
+Batch helper:
+
+```bash
+python3 scripts/block_install_routes.py
+python3 scripts/block_install_routes.py --apply
+```
+
+The first command is a dry run. The second command applies `REQUEST_INSTALL_PACKAGES ignore` to discovered install-route packages.
 
 If the command is unsupported or ineffective, provide manual settings:
 
