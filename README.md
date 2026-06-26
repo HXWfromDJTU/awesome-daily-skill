@@ -8,7 +8,7 @@
 
 | Skill | 用途 |
 |---|---|
-| [`android-spam-app-disable-and-uninstall`](./android-spam-app-disable-and-uninstall/) | 帮父母清理安卓手机里的垃圾软件，列出安装来源，优先禁用 APK 安装权限，再处理确认不要的 App |
+| [`android-spam-app-disable-and-uninstall`](./android-spam-app-disable-and-uninstall/) | 帮老人家清理安卓手机里的垃圾软件，列出安装来源，优先禁用 APK 安装权限，再处理确认不要的 App |
 
 ## 推荐安装方式
 

@@ -1,6 +1,6 @@
 # android-spam-app-disable-and-uninstall
 
-这是一个面向普通家庭场景的安卓手机清理 Skill。它适合用来帮父母检查手机里反复出现的“清理大师”“免费 Wi-Fi”“红包赚钱”“手机加速”“弹窗广告”等垃圾软件。
+这是一个面向普通家庭场景的安卓手机清理 Skill。它适合用来帮老人家检查手机里反复出现的“清理大师”“免费 Wi-Fi”“红包赚钱”“手机加速”“弹窗广告”等垃圾软件。
 
 它的重点不是一键删除，而是：
 
@@ -40,7 +40,7 @@ Skill 目录：android-spam-app-disable-and-uninstall
 
 ## 需要提前准备
 
-- 父母的安卓手机。
+- 老人家的安卓手机。
 - 一台电脑。
 - 官方 ADB 工具，也就是 Android SDK Platform-Tools。
 - 手机和电脑连接同一个 Wi-Fi，或用 USB 数据线连接。
