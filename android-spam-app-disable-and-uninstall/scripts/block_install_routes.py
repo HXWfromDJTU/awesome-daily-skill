@@ -22,6 +22,7 @@ KNOWN_INSTALL_ROUTE_PACKAGES = {
     "com.hihonor.fastappengine": "Honor Quick App Engine",
     "com.xiaomi.market": "Xiaomi App Store",
     "com.android.browser": "System Browser",
+    "com.android.chrome": "Chrome Browser",
     "com.mi.globalbrowser": "Mi Browser",
     "com.miui.hybrid": "Xiaomi Quick App",
     "com.miui.hybrid.accessory": "Xiaomi Quick App Accessory",
@@ -44,7 +45,6 @@ KNOWN_INSTALL_ROUTE_PACKAGES = {
 KEYWORD_HINTS = (
     "market",
     "appstore",
-    "store",
     "browser",
     "download",
     "downloader",
@@ -116,7 +116,14 @@ def parse_package_list(output: str) -> set[str]:
     return packages
 
 
-def discover_route_packages(all_packages: set[str], extra_packages: list[str]) -> list[RoutePackage]:
+def package_requests_install_permission(adb_path: str, package: str) -> bool:
+    code, out, _ = shell(adb_path, "dumpsys", "package", package, timeout=30)
+    if code != 0:
+        return False
+    return "android.permission.REQUEST_INSTALL_PACKAGES" in out
+
+
+def discover_route_packages(adb_path: str, all_packages: set[str], extra_packages: list[str]) -> list[RoutePackage]:
     routes: dict[str, str] = {}
     for package, reason in KNOWN_INSTALL_ROUTE_PACKAGES.items():
         if package in all_packages:
@@ -126,7 +133,7 @@ def discover_route_packages(all_packages: set[str], extra_packages: list[str]) -
         lower = package.lower()
         if package in NEVER_TOUCH_PACKAGES:
             continue
-        if any(hint in lower for hint in KEYWORD_HINTS):
+        if any(hint in lower for hint in KEYWORD_HINTS) and package_requests_install_permission(adb_path, package):
             routes.setdefault(package, "package name matches install-route keyword")
 
     for package in extra_packages:
@@ -173,7 +180,7 @@ def main() -> int:
         print(f"Failed to list packages: {all_err or all_out}", file=sys.stderr)
         return code or 1
 
-    routes = discover_route_packages(parse_package_list(all_out), args.package)
+    routes = discover_route_packages(args.adb, parse_package_list(all_out), args.package)
     if not routes:
         print("No install-route packages discovered.")
         return 0
