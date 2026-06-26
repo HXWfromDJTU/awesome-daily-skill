@@ -23,13 +23,15 @@ This Skill can be used by Codex or any other Agent that supports Skills, custom 
 - For install-route packages, always show a numbered list and accept simple confirmations: `确认禁用全部` or `确认禁用 1,3,5`. Do not ask the user to separately fill `确认删除 / 确认停用 / 确认保留` for the install-route step.
 - For junk-app deletion candidates, always show a numbered table before asking the user to choose. The table must prioritize the app's UI display name, then installer source, install time, package name, and the deletion recommendation.
 - Do not omit apps from the review table just because they look important, common, official, financial, map-related, carrier-related, keyboard-related, or installed from an official app store. List them and put them in an `重要/谨慎` or `普通复核` group with a conservative recommendation instead of making the decision for the user.
+- When the user chooses `选项 B`, says `继续删除垃圾应用`, or asks to list all apps, run a fresh full inventory with `scripts/collect_android_inventory.py --include-system`. Do not reuse earlier candidate lists, memory, screenshots, or only the apps mentioned by the user.
+- In a full deletion review, report the total number of app rows found. If you paginate because the table is long, keep global numbering, show page status, and continue pages until every app has been shown or the user explicitly says a subset is enough.
 - Do not accept `全部删除`, `全删`, or similar blanket deletion requests for app deletion. Explain that app deletion is riskier than closing install permissions, and ask the user to choose explicit item numbers such as `请删除 1、2、4`.
 - Never delete apps immediately after the user's first numbered selection. First repeat the selected apps by number, UI name when available, package, command, and impact, then ask for a second confirmation. If the UI name is unavailable, write `未读取到，以包名为准`; do not ask the user to manually look up and retype the name. Execute only after the user replies `确认删除`.
 
 ## Bundled Resources
 
 - Use `scripts/ensure_adb.py` to detect the Agent's current OS and install the matching official Android SDK Platform-Tools package when `adb` is missing.
-- Use `scripts/collect_android_inventory.py` to collect a read-only inventory when Python is available. It prints numbered apps with group, app name, installer, install time, update time, package, and suggestion when the device exposes that metadata. Use `--include-system` when the user wants a complete review table that also includes important/system-looking apps.
+- Use `scripts/collect_android_inventory.py` to collect a read-only inventory when Python is available. It prints numbered apps with group, app name, installer, install time, update time, package, and suggestion when the device exposes that metadata. Use `--include-system` when the user wants a complete review table that also includes important/system-looking apps. Use `--page-size <n> --page <n>` only for pagination; this keeps global numbering and prints the total row count.
 - Use `scripts/block_install_routes.py` to generate or apply ADB commands that set install-route packages to `REQUEST_INSTALL_PACKAGES ignore`.
 - Read `references/adb-command-reference.md` when you need exact command templates for uninstalling, disabling, restoring, appops, and verification.
 - Read `references/vendor-package-candidates.md` when you need common package candidates for domestic Android vendors and third-party app stores.
@@ -115,9 +117,19 @@ python3 scripts/collect_android_inventory.py --include-system
 
 This may produce a longer table. It is still read-only.
 
+If the full table is too long for one response, paginate explicitly:
+
+```bash
+python3 scripts/collect_android_inventory.py --include-system --page-size 40 --page 1
+python3 scripts/collect_android_inventory.py --include-system --page-size 40 --page 2
+```
+
+The Agent must say the total app count and page range from the script output. Do not call a partial page a complete review.
+
 If Python is unavailable, run the core commands manually:
 
 ```bash
+adb shell pm list packages -i
 adb shell pm list packages -3 -i
 adb shell pm list packages -d
 adb shell pm list packages
@@ -253,10 +265,57 @@ If ADB cannot reliably change a vendor setting, provide a manual route as a fall
 
 Only enter this step after install routes have been reviewed, or when the user explicitly asks to continue deleting junk apps.
 
+When entering this step, first run a fresh complete inventory:
+
+```bash
+python3 scripts/collect_android_inventory.py --include-system
+```
+
+If the output is too long, use paginated full inventory:
+
+```bash
+python3 scripts/collect_android_inventory.py --include-system --page-size 40 --page 1
+```
+
+Rules for full review:
+
+- Do not reuse the earlier candidate list from install-route review or a previous user message.
+- Do not show only `重点复核` or only apps you already suspected.
+- Do not title a partial hand-picked list as `第一轮复核表`.
+- If paginated, title it as `全量应用清单第 1 批 / 共 N 批` and keep global numbers from the script.
+- Show `共查询到 N 个 App/包` before the table.
+- Do not invite deletion choices until all pages have been shown, unless the user explicitly says they only want to choose from the current page.
+
 Do not show deletion candidates as a plain bullet list of package names. Do not hide important-looking apps. For ordinary users, package names are only supporting details. Always show numbered tables in Chinese:
 
 ```text
-继续删除前，我把应用按风险分组列出来。这里不是让你全部删除，而是让你看清楚每个 App 的来源和建议。请只选择你确认不要的编号。
+继续删除前，我重新查询了手机上的全量应用清单。
+共查询到 103 个 App/包。下面是全量应用清单第 1 批 / 共 3 批（编号 1-40）。
+这里不是让你全部删除，而是让你看清楚每个 App 的来源和建议。
+
+| 编号 | 分组 | App 名称 | 安装来源 | 安装时间 | 包名 | 删除建议 |
+|---|---|---|---|---|---|---|
+| 1 | 重点复核 | LED 跑马灯 | com.bbk.appstore / vivo 应用商店 | 2026-06-18 10:20 | com.devfire.ledbanner | 非必要工具，问过机主不用后可删 |
+| 2 | 重点复核 | 第三方天气 | unknown / 未读取到 | 2026-05-02 08:11 | com.zdbq.ljtq.ljweather | 非系统天气，若不用可删 |
+| 3 | 重要/谨慎 | 微信 | com.tencent.mm / 安装来源见清单 | 2025-12-01 09:10 | com.tencent.mm | 常用通讯 App，默认保留；确认不用才处理 |
+| 4 | 重要/谨慎 | 输入法 | com.bbk.appstore / vivo 应用商店 | 2025-10-03 12:30 | com.sohu.inputmethod.sogou.vivo | 可能影响打字，默认保留；确认不用才处理 |
+| 5 | 普通复核 | 短视频 App | com.bbk.appstore / vivo 应用商店 | 2026-06-20 21:03 | com.kaixinkan.ugc.video.atom | 如果家人不用，可考虑删除 |
+
+我会继续列出下一批，等全量清单都列完后，再让你选择要删除的编号。
+```
+
+After every page has been shown, ask for deletion choices:
+
+```text
+全量清单已经列完。你可以回复：请删除 1、2、4
+不建议回复：全部删除
+```
+
+If the full table fits in one response:
+
+```text
+继续删除前，我重新查询了手机上的全量应用清单。
+共查询到 103 个 App/包。下面是全部应用。
 
 | 编号 | 分组 | App 名称 | 安装来源 | 安装时间 | 包名 | 删除建议 |
 |---|---|---|---|---|---|---|
@@ -408,6 +467,14 @@ If the user chooses option A, or clearly says the cleanup is finished, then tell
 Then ask the user to reboot the phone once.
 
 If the user chooses option B, keep ADB available and continue with confirmed junk-app deletion or app-package disabling. Do not mention closing debugging again until there are no remaining ADB actions or the user chooses to finish.
+
+When the user chooses option B, go to the full app review step and run:
+
+```bash
+python3 scripts/collect_android_inventory.py --include-system
+```
+
+Do not answer option B with only a curated short candidate table.
 
 End with a concise summary:
 

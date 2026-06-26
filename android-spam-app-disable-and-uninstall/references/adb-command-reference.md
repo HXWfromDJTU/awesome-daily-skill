@@ -75,15 +75,27 @@ Preferred helper:
 ```bash
 python3 scripts/collect_android_inventory.py
 python3 scripts/collect_android_inventory.py --include-system
+python3 scripts/collect_android_inventory.py --include-system --page-size 40 --page 1
 ```
 
-The helper is read-only. The default command prints third-party apps. `--include-system` prints a broader table that also includes system/important-looking apps so the Agent does not silently omit WeChat, Alipay, keyboards, carrier apps, banking/insurance apps, maps, phone, SMS, settings, and similar packages.
+The helper is read-only. The default command prints third-party apps. `--include-system` prints a broader table that also includes system/important-looking apps so the Agent does not silently omit WeChat, Alipay, keyboards, carrier apps, banking/insurance apps, maps, phone, SMS, settings, and similar packages. `--page-size` and `--page` may be used only for pagination; the script keeps global numbering and prints the total row count.
+
+When the user chooses `选项 B`, says `继续删除垃圾应用`, or asks to list all apps, run a fresh full query:
+
+```bash
+python3 scripts/collect_android_inventory.py --include-system
+```
+
+Do not answer from a previous short candidate list. Do not show only the known suspicious apps. If the table is too long, paginate and report every page until the complete list has been shown or the user explicitly says the current subset is enough.
 
 ## Deletion Candidate Confirmation
 
-Before deleting any app, show a numbered review table. Do not hide important-looking apps; put them in a conservative group instead.
+Before deleting any app, show a numbered review table from the fresh full inventory. Do not hide important-looking apps; put them in a conservative group instead.
 
 ```text
+继续删除前，我重新查询了手机上的全量应用清单。
+共查询到 103 个 App/包。下面是全量应用清单第 1 批 / 共 3 批（编号 1-40）。
+
 | 编号 | 分组 | App 名称 | 安装来源 | 安装时间 | 包名 | 删除建议 |
 |---|---|---|---|---|---|---|
 | 1 | 重点复核 | LED 跑马灯 | com.bbk.appstore / vivo 应用商店 | 2026-06-18 10:20 | com.devfire.ledbanner | 非必要工具，确认不用后可删 |

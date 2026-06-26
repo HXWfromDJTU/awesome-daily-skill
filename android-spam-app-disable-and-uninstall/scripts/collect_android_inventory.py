@@ -280,7 +280,15 @@ def main() -> int:
     parser.add_argument("--include-system", action="store_true", help="Include system packages in the review table.")
     parser.add_argument("--no-deep-source", action="store_true", help="Do not call get-install-source for each app.")
     parser.add_argument("--no-metadata", action="store_true", help="Do not call dumpsys package for app name and install time.")
+    parser.add_argument("--page-size", type=int, default=0, help="Rows per page. Defaults to 0, which prints all rows.")
+    parser.add_argument("--page", type=int, default=1, help="Page number when --page-size is used.")
     args = parser.parse_args()
+    if args.page_size < 0:
+        print("--page-size must be 0 or greater", file=sys.stderr)
+        return 2
+    if args.page < 1:
+        print("--page must be 1 or greater", file=sys.stderr)
+        return 2
 
     code, out, err = adb(args.adb, "devices", "-l")
     if code != 0:
@@ -334,10 +342,35 @@ def main() -> int:
     for pkg in packages:
         pkg.group, pkg.suggestion = classify(pkg.package, pkg.installer)
 
+    sorted_packages = sorted(packages, key=lambda item: (item.group, item.suggestion, item.package))
+    indexed_packages = list(enumerate(sorted_packages, start=1))
+    total_rows = len(indexed_packages)
+    if args.page_size and total_rows:
+        total_pages = (total_rows + args.page_size - 1) // args.page_size
+        if args.page > total_pages:
+            print(f"--page is out of range. Total pages: {total_pages}", file=sys.stderr)
+            return 2
+        start_index = (args.page - 1) * args.page_size
+        end_index = min(start_index + args.page_size, total_rows)
+        indexed_packages = indexed_packages[start_index:end_index]
+    else:
+        total_pages = 1 if total_rows else 0
+        start_index = 0
+        end_index = total_rows
+
     section_title = "All Packages" if args.include_system else "Third-Party Packages"
     print(f"\n## {section_title}\n")
+    package_scope = "all installed packages" if args.include_system else "third-party packages only"
+    print(f"- Package scope: {package_scope}")
+    print(f"- Package rows found: {total_rows}")
+    if args.page_size and total_rows:
+        print(f"- Page: {args.page}/{total_pages}, rows {start_index + 1}-{end_index} of {total_rows}")
+        if args.page < total_pages:
+            print(f"- Next page command: `python3 scripts/collect_android_inventory.py {'--include-system ' if args.include_system else ''}--page-size {args.page_size} --page {args.page + 1}`")
+    print()
+
     rows = [["No.", "Group", "App name", "Installer", "First install", "Last update", "Package", "Suggestion"]]
-    for index, pkg in enumerate(sorted(packages, key=lambda item: (item.group, item.suggestion, item.package)), start=1):
+    for index, pkg in indexed_packages:
         rows.append([
             str(index),
             pkg.group,

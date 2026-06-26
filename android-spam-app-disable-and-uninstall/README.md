@@ -85,9 +85,21 @@ Agent 自动下载时会先识别系统：
 python3 scripts/collect_android_inventory.py --include-system
 ```
 
+如果清单太长，可以分页，但必须说明总数、当前批次，并保持全局编号：
+
+```bash
+python3 scripts/collect_android_inventory.py --include-system --page-size 40 --page 1
+python3 scripts/collect_android_inventory.py --include-system --page-size 40 --page 2
+```
+
+用户选择 `选项 B` 或要求“全部列出来”时，Agent 必须重新执行全量清单查询，不能只展示前面提到过的候选 App，也不能把少量候选称为“第一轮复核表”。如果分页，需要把每一批都列完，或者用户明确说“只看当前这批就够了”，再让用户选删除编号。
+
 默认交互是：
 
 ```text
+继续删除前，我重新查询了手机上的全量应用清单。
+共查询到 103 个 App/包。下面是全部应用。
+
 | 编号 | 分组 | App 名称 | 安装来源 | 安装时间 | 包名 | 删除建议 |
 |---|---|---|---|---|---|---|
 | 1 | 重点复核 | LED 跑马灯 | vivo 应用商店 | 2026-06-18 10:20 | com.devfire.ledbanner | 非必要工具，确认不用后可删 |
@@ -109,5 +121,5 @@ python3 scripts/collect_android_inventory.py --include-system
 内置脚本：
 
 - `scripts/ensure_adb.py`：识别当前系统，缺少 ADB 时从 Google 官方地址下载对应版本的 Platform-Tools，并用 `adb version` 验证。
-- `scripts/collect_android_inventory.py`：只读盘点，会尽量列出 App 分组、显示名、安装来源、安装时间、更新时间、包名和建议，不会删除、停用或修改手机里的任何 App。加 `--include-system` 时会把系统/重要类 App 也放进复核表。
+- `scripts/collect_android_inventory.py`：只读盘点，会尽量列出 App 分组、显示名、安装来源、安装时间、更新时间、包名和建议，不会删除、停用或修改手机里的任何 App。加 `--include-system` 时会把系统/重要类 App 也放进复核表；加 `--page-size` 和 `--page` 可以分页展示全量清单。
 - `scripts/block_install_routes.py`：默认 dry-run，只列出将关闭的安装入口；用户确认后加 `--apply`，才会执行 `adb shell appops set <包名> REQUEST_INSTALL_PACKAGES ignore`。支持 `--select 1,3,5` 只禁用用户确认的编号。
