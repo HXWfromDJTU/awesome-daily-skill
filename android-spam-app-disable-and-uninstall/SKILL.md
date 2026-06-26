@@ -21,11 +21,14 @@ This Skill can be used by Codex or any other Agent that supports Skills, custom 
 - For app stores, browsers, file managers, downloaders, and quick-app services, do not present the app itself as a deletion target just because it can install APK files. First recommend only disabling its APK installation permission with `REQUEST_INSTALL_PACKAGES ignore`.
 - In Chinese user-facing replies, call this action `禁用安装权限` or `禁止安装 APK`, not `删除`. If the user says `确认禁用`, interpret it as disabling APK installation permission unless they explicitly mention app-package disabling.
 - For install-route packages, always show a numbered list and accept simple confirmations: `确认禁用全部` or `确认禁用 1,3,5`. Do not ask the user to separately fill `确认删除 / 确认停用 / 确认保留` for the install-route step.
+- For junk-app deletion candidates, always show a numbered table before asking the user to choose. The table must prioritize the app's UI display name, then installer source, install time, package name, and the deletion recommendation.
+- Do not accept `全部删除`, `全删`, or similar blanket deletion requests for app deletion. Explain that app deletion is riskier than closing install permissions, and ask the user to choose explicit item numbers such as `请删除 1、2、4`.
+- Never delete apps immediately after the user's first numbered selection. First repeat the selected apps by number, UI name, package, command, and impact, then ask for a second confirmation. Execute only after the user confirms that second list.
 
 ## Bundled Resources
 
 - Use `scripts/ensure_adb.py` to detect the Agent's current OS and install the matching official Android SDK Platform-Tools package when `adb` is missing.
-- Use `scripts/collect_android_inventory.py` to collect a read-only inventory when Python is available.
+- Use `scripts/collect_android_inventory.py` to collect a read-only inventory when Python is available. It prints numbered third-party apps with app name, installer, install time, update time, package, and suggestion when the device exposes that metadata.
 - Use `scripts/block_install_routes.py` to generate or apply ADB commands that set install-route packages to `REQUEST_INSTALL_PACKAGES ignore`.
 - Read `references/adb-command-reference.md` when you need exact command templates for uninstalling, disabling, restoring, appops, and verification.
 - Read `references/vendor-package-candidates.md` when you need common package candidates for domestic Android vendors and third-party app stores.
@@ -170,48 +173,7 @@ Rules for this step:
 - If the parent is unsure, do not change that package.
 - After this step, you may separately ask about clearly unwanted junk apps, but still require explicit confirmation before deletion or app-package disabling.
 
-### 6. Generate Commands For Confirmed Junk Apps
-
-Use the command patterns in `references/adb-command-reference.md`.
-
-For ordinary user-installed apps:
-
-```bash
-adb uninstall <package>
-```
-
-For preinstalled apps that should be removed only from the current user:
-
-```bash
-adb shell pm uninstall --user 0 <package>
-```
-
-For temporary disabling:
-
-```bash
-adb shell pm disable-user --user 0 <package>
-```
-
-Always include recovery commands:
-
-```bash
-adb shell cmd package install-existing --user 0 <package>
-adb shell pm enable <package>
-```
-
-After every action, verify:
-
-```bash
-adb shell pm list packages --user 0 | grep <package>
-```
-
-On Windows PowerShell:
-
-```powershell
-adb shell pm list packages --user 0 | findstr <package>
-```
-
-### 7. Close Future Install Routes With Agent Commands
+### 6. Close Future Install Routes With Agent Commands
 
 Do not primarily tell the user to tap through phone settings. Let the Agent close install routes through ADB when possible.
 
@@ -270,7 +232,105 @@ If ADB cannot reliably change a vendor setting, provide a manual route as a fall
 - Settings > Browser > Download / Security settings > turn off APK auto install.
 - Settings > Quick apps > Manage > disable service when available.
 
-### 8. Ask Whether To Continue Or Finish
+### 7. Present Deletion Candidates As A Numbered Table
+
+Only enter this step after install routes have been reviewed, or when the user explicitly asks to continue deleting junk apps.
+
+Do not show deletion candidates as a plain bullet list of package names. For ordinary users, package names are only supporting details. Always show a numbered table in Chinese:
+
+```text
+继续删除垃圾应用前，我复核了一遍：这些只是“可能不需要”的候选，不建议全部删除。请只选择你确认不要的编号。
+
+| 编号 | App 名称 | 安装来源 | 安装时间 | 包名 | 删除建议 |
+|---|---|---|---|---|---|
+| 1 | LED 跑马灯 | com.bbk.appstore / vivo 应用商店 | 2026-06-18 10:20 | com.devfire.ledbanner | 非必要工具，问过机主不用后可删 |
+| 2 | 第三方天气 | unknown / 未读取到 | 2026-05-02 08:11 | com.zdbq.ljtq.ljweather | 非系统天气，若不用可删 |
+| 3 | 临时邮箱 | browser / 浏览器下载 | 2026-06-20 21:03 | com.temporary.email.pro | 用途偏临时，确认不用后可删 |
+
+你可以回复：请删除 1、2、4
+不建议回复：全部删除
+```
+
+Table rules:
+
+- `编号`: stable item number for this deletion-candidate round.
+- `App 名称`: put the app's UI display name first. If ADB cannot read it, write `未知，请在手机应用列表核对`, and ask the user to verify the visible name before deleting.
+- `安装来源`: show the raw installer package and a plain-language explanation when known, for example `com.bbk.appstore / vivo 应用商店`, `com.android.browser / 浏览器下载`, or `unknown / 未读取到`.
+- `安装时间`: use `firstInstallTime` from `dumpsys package` when available. If unavailable, write `未读取到`.
+- `包名`: show the package name, but do not make it the first thing ordinary users see.
+- `删除建议`: use plain language such as `建议问爸妈`, `确认不用可删`, `不建议删除`, or `高风险广告类，建议删除前再确认`.
+
+Selection rules:
+
+- Accept `请删除 1、2、4`, `删除 1,2,4`, or similar explicit number selections.
+- If the user says `全部删除`, `全删`, or gives no numbers, do not continue. Reply that app deletion should not be done in bulk and ask for explicit item numbers.
+- If a selected app name is unknown or ambiguous, ask the user to confirm the visible phone UI name before including it in the deletion confirmation.
+
+### 8. Second Confirm And Delete Confirmed Apps
+
+After the user gives deletion numbers, do not execute commands yet. First produce a second-confirmation message:
+
+```text
+我还不会马上删除。请你二次确认是否删除下面这几个 App：
+
+1. LED 跑马灯
+   包名：com.devfire.ledbanner
+   安装来源：com.bbk.appstore / vivo 应用商店
+   安装时间：2026-06-18 10:20
+   将执行：adb uninstall com.devfire.ledbanner
+
+2. 临时邮箱
+   包名：com.temporary.email.pro
+   安装来源：com.android.browser / 浏览器下载
+   安装时间：2026-06-20 21:03
+   将执行：adb uninstall com.temporary.email.pro
+
+如果确认删除以上 2 个 App，请回复：确认删除以上 2 个 App
+如果不确定，请回复：先不删
+```
+
+Only after the second confirmation, execute deletion commands.
+
+Use the command patterns in `references/adb-command-reference.md`.
+
+For ordinary user-installed apps:
+
+```bash
+adb uninstall <package>
+```
+
+For preinstalled apps that should be removed only from the current user:
+
+```bash
+adb shell pm uninstall --user 0 <package>
+```
+
+For temporary disabling:
+
+```bash
+adb shell pm disable-user --user 0 <package>
+```
+
+Always include recovery commands:
+
+```bash
+adb shell cmd package install-existing --user 0 <package>
+adb shell pm enable <package>
+```
+
+After every action, verify:
+
+```bash
+adb shell pm list packages --user 0 | grep <package>
+```
+
+On Windows PowerShell:
+
+```powershell
+adb shell pm list packages --user 0 | findstr <package>
+```
+
+### 9. Ask Whether To Continue Or Finish
 
 Do not tell the user to close wireless debugging, USB debugging, or Developer options immediately after closing install routes if there are still possible ADB cleanup steps. Closing debugging ends the Agent's ability to continue uninstalling or disabling unwanted apps.
 

@@ -77,8 +77,21 @@ Agent 自动下载时会先识别系统：
 
 这里的“禁用”指禁用 APK 安装权限，也就是执行 `REQUEST_INSTALL_PACKAGES ignore`，不是删除浏览器、应用商店或文件管理器本体。
 
+对垃圾 App 删除的默认交互是：
+
+```text
+| 编号 | App 名称 | 安装来源 | 安装时间 | 包名 | 删除建议 |
+|---|---|---|---|---|---|
+| 1 | LED 跑马灯 | vivo 应用商店 | 2026-06-18 10:20 | com.devfire.ledbanner | 非必要工具，确认不用后可删 |
+| 2 | 临时邮箱 | 浏览器下载 | 2026-06-20 21:03 | com.temporary.email.pro | 用途偏临时，确认不用后可删 |
+
+你可以回复：请删除 1、2
+```
+
+不建议、也不默认接受“全部删除”。用户第一次用编号选择后，Agent 还必须把选中的 App 名称、包名、安装来源、安装时间和将执行的命令再复述一遍，等用户二次确认后才允许删除。
+
 内置脚本：
 
 - `scripts/ensure_adb.py`：识别当前系统，缺少 ADB 时从 Google 官方地址下载对应版本的 Platform-Tools，并用 `adb version` 验证。
-- `scripts/collect_android_inventory.py`：只读盘点，不会删除、停用或修改手机里的任何 App。
+- `scripts/collect_android_inventory.py`：只读盘点，会尽量列出 App 显示名、安装来源、安装时间、更新时间、包名和建议，不会删除、停用或修改手机里的任何 App。
 - `scripts/block_install_routes.py`：默认 dry-run，只列出将关闭的安装入口；用户确认后加 `--apply`，才会执行 `adb shell appops set <包名> REQUEST_INSTALL_PACKAGES ignore`。支持 `--select 1,3,5` 只禁用用户确认的编号。

@@ -78,8 +78,11 @@ VENDOR_CANDIDATES = {
 @dataclass
 class PackageInfo:
     package: str
-    installer: str
-    suggestion: str
+    installer: str = ""
+    app_name: str = ""
+    first_install_time: str = ""
+    last_update_time: str = ""
+    suggestion: str = ""
 
 
 def run_command(args: list[str], timeout: int = 20) -> tuple[int, str, str]:
@@ -142,6 +145,45 @@ def parse_install_source(output: str) -> str:
     return stripped if stripped and "\n" not in stripped else ""
 
 
+def clean_metadata_value(value: str) -> str:
+    value = value.strip().strip("'\"")
+    if value in {"", "null", "None"} or value.startswith("null "):
+        return ""
+    return value
+
+
+def parse_dumpsys_field(output: str, field_name: str) -> str:
+    prefix = f"{field_name}="
+    for line in output.splitlines():
+        line = line.strip()
+        if prefix not in line:
+            continue
+        value = line.split(prefix, 1)[1].strip()
+        for trailer in (" icon=", " banner=", " description=", " enabled=", " flags="):
+            value = value.split(trailer, 1)[0].strip()
+        return clean_metadata_value(value)
+    return ""
+
+
+def parse_app_name(output: str) -> str:
+    for field_name in ("nonLocalizedLabel", "label"):
+        value = parse_dumpsys_field(output, field_name)
+        if value and not value.startswith("0x"):
+            return value
+    return ""
+
+
+def fill_package_metadata(adb_path: str, pkg: PackageInfo) -> None:
+    code, out, _ = shell(adb_path, "dumpsys", "package", pkg.package, timeout=30)
+    if code != 0 or not out:
+        return
+    pkg.app_name = parse_app_name(out)
+    pkg.first_install_time = parse_dumpsys_field(out, "firstInstallTime")
+    pkg.last_update_time = parse_dumpsys_field(out, "lastUpdateTime")
+    if not pkg.installer:
+        pkg.installer = parse_dumpsys_field(out, "installerPackageName")
+
+
 def classify(package: str, installer: str) -> str:
     package_l = package.lower()
     installer_l = installer.lower()
@@ -173,6 +215,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Collect a read-only Android app inventory via ADB.")
     parser.add_argument("--adb", default="adb", help="Path to adb executable. Defaults to adb on PATH.")
     parser.add_argument("--no-deep-source", action="store_true", help="Do not call get-install-source for each app.")
+    parser.add_argument("--no-metadata", action="store_true", help="Do not call dumpsys package for app name and install time.")
     args = parser.parse_args()
 
     code, out, err = adb(args.adb, "devices", "-l")
@@ -218,13 +261,25 @@ def main() -> int:
             if source:
                 pkg.installer = source
 
+    if not args.no_metadata:
+        for pkg in packages:
+            fill_package_metadata(args.adb, pkg)
+
     for pkg in packages:
         pkg.suggestion = classify(pkg.package, pkg.installer)
 
     print("\n## Third-Party Packages\n")
-    rows = [["Suggestion", "Package", "Installer"]]
-    for pkg in sorted(packages, key=lambda item: (item.suggestion, item.package)):
-        rows.append([pkg.suggestion, pkg.package, pkg.installer or "(unknown)"])
+    rows = [["No.", "App name", "Installer", "First install", "Last update", "Package", "Suggestion"]]
+    for index, pkg in enumerate(sorted(packages, key=lambda item: (item.suggestion, item.package)), start=1):
+        rows.append([
+            str(index),
+            pkg.app_name or "(unknown; check phone UI)",
+            pkg.installer or "(unknown)",
+            pkg.first_install_time or "(unknown)",
+            pkg.last_update_time or "(unknown)",
+            pkg.package,
+            pkg.suggestion,
+        ])
     print(markdown_table(rows) if len(rows) > 1 else "No third-party packages found.")
 
     code, all_packages_out, _ = shell(args.adb, "pm", "list", "packages", timeout=60)

@@ -58,12 +58,61 @@ adb shell pm list packages -d
 adb shell pm list packages
 adb shell cmd package get-install-source <package>
 adb shell dumpsys package <package> | grep installer
+adb shell dumpsys package <package> | grep firstInstallTime
+adb shell dumpsys package <package> | grep lastUpdateTime
 ```
 
 Windows PowerShell:
 
 ```powershell
 adb shell dumpsys package <package> | findstr installer
+adb shell dumpsys package <package> | findstr firstInstallTime
+adb shell dumpsys package <package> | findstr lastUpdateTime
+```
+
+Preferred helper:
+
+```bash
+python3 scripts/collect_android_inventory.py
+```
+
+The helper is read-only and prints third-party apps with numbered rows, app name when available, installer, install time, update time, package, and suggestion.
+
+## Deletion Candidate Confirmation
+
+Before deleting any app, show a numbered table:
+
+```text
+| 编号 | App 名称 | 安装来源 | 安装时间 | 包名 | 删除建议 |
+|---|---|---|---|---|---|
+| 1 | LED 跑马灯 | com.bbk.appstore / vivo 应用商店 | 2026-06-18 10:20 | com.devfire.ledbanner | 非必要工具，确认不用后可删 |
+```
+
+Ask the user to choose explicit numbers:
+
+```text
+请删除 1、2、4
+```
+
+Do not accept blanket deletion requests such as:
+
+```text
+全部删除
+全删
+```
+
+After the user chooses numbers, do not execute yet. Repeat the selected apps and commands, then ask for a second confirmation:
+
+```text
+我还不会马上删除。请你二次确认是否删除下面这几个 App：
+
+1. LED 跑马灯
+   包名：com.devfire.ledbanner
+   安装来源：com.bbk.appstore / vivo 应用商店
+   安装时间：2026-06-18 10:20
+   将执行：adb uninstall com.devfire.ledbanner
+
+如果确认删除以上 1 个 App，请回复：确认删除以上 1 个 App
 ```
 
 ## Unknown APK Install Permission
