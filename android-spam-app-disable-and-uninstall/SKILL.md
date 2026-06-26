@@ -24,16 +24,56 @@ This Skill can be used by Codex or any other Agent that supports Skills, custom 
 
 ## Bundled Resources
 
+- Use `scripts/ensure_adb.py` to detect the Agent's current OS and install the matching official Android SDK Platform-Tools package when `adb` is missing.
 - Use `scripts/collect_android_inventory.py` to collect a read-only inventory when Python is available.
 - Use `scripts/block_install_routes.py` to generate or apply ADB commands that set install-route packages to `REQUEST_INSTALL_PACKAGES ignore`.
 - Read `references/adb-command-reference.md` when you need exact command templates for uninstalling, disabling, restoring, appops, and verification.
 - Read `references/vendor-package-candidates.md` when you need common package candidates for domestic Android vendors and third-party app stores.
 
-`collect_android_inventory.py` is read-only. `block_install_routes.py` is dry-run by default and only modifies the phone when the user confirms and you pass `--apply`.
+`ensure_adb.py` only downloads official Platform-Tools into a user-scoped directory and does not modify PATH. `collect_android_inventory.py` is read-only. `block_install_routes.py` is dry-run by default and only modifies the phone when the user confirms and you pass `--apply`.
 
 ## Workflow
 
-### 1. Confirm ADB Connection
+### 1. Ensure ADB For The Current System
+
+Do not assume the user is on macOS. First detect the Agent runtime OS and use the matching official Google Platform-Tools package.
+
+When Python is available, prefer:
+
+```bash
+python3 scripts/ensure_adb.py --dry-run
+python3 scripts/ensure_adb.py
+```
+
+The script chooses:
+
+| Agent OS | Official package |
+|---|---|
+| macOS / Darwin | `platform-tools-latest-darwin.zip` |
+| Windows | `platform-tools-latest-windows.zip` |
+| Linux | `platform-tools-latest-linux.zip` |
+
+Rules:
+
+- Download only from `https://dl.google.com/android/repository/`.
+- Install into a user-scoped directory, by default `~/.codex/tools/android-platform-tools/`.
+- Do not modify the user's system `PATH`.
+- Verify with `adb version`.
+- Use the resulting explicit `adb` path in later commands when needed.
+
+If Python is unavailable, detect the OS manually before choosing the download URL:
+
+```bash
+uname -s
+```
+
+On Windows PowerShell:
+
+```powershell
+$PSVersionTable.OS
+```
+
+### 2. Confirm ADB Connection
 
 Explain that this step only checks whether the computer can see the phone.
 
@@ -55,7 +95,7 @@ adb shell getprop ro.build.version.release
 adb shell getprop ro.build.version.incremental
 ```
 
-### 2. Collect App Inventory
+### 3. Collect App Inventory
 
 Prefer the bundled script when Python is available:
 
@@ -85,7 +125,7 @@ adb shell dumpsys package <package> | grep installer
 
 On Windows PowerShell, replace `grep` with `findstr`.
 
-### 3. Classify Apps For The User
+### 4. Classify Apps For The User
 
 Present a plain-language table:
 
@@ -104,7 +144,7 @@ Flag an app as suspicious when:
 
 If the installer is the official app store, do not automatically trust it. Ask whether the parent actually needs the app.
 
-### 4. Prepare The Install-Route Confirmation List
+### 5. Prepare The Install-Route Confirmation List
 
 After the read-only inventory, prioritize future install routes before discussing app deletion. Present install-route packages as a numbered list.
 
@@ -130,7 +170,7 @@ Rules for this step:
 - If the parent is unsure, do not change that package.
 - After this step, you may separately ask about clearly unwanted junk apps, but still require explicit confirmation before deletion or app-package disabling.
 
-### 5. Generate Commands For Confirmed Junk Apps
+### 6. Generate Commands For Confirmed Junk Apps
 
 Use the command patterns in `references/adb-command-reference.md`.
 
@@ -171,7 +211,7 @@ On Windows PowerShell:
 adb shell pm list packages --user 0 | findstr <package>
 ```
 
-### 6. Close Future Install Routes With Agent Commands
+### 7. Close Future Install Routes With Agent Commands
 
 Do not primarily tell the user to tap through phone settings. Let the Agent close install routes through ADB when possible.
 
@@ -230,7 +270,7 @@ If ADB cannot reliably change a vendor setting, provide a manual route as a fall
 - Settings > Browser > Download / Security settings > turn off APK auto install.
 - Settings > Quick apps > Manage > disable service when available.
 
-### 7. Ask Whether To Continue Or Finish
+### 8. Ask Whether To Continue Or Finish
 
 Do not tell the user to close wireless debugging, USB debugging, or Developer options immediately after closing install routes if there are still possible ADB cleanup steps. Closing debugging ends the Agent's ability to continue uninstalling or disabling unwanted apps.
 

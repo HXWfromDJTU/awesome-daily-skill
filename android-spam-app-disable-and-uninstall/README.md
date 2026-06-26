@@ -42,9 +42,43 @@ Skill 目录：android-spam-app-disable-and-uninstall
 
 - 老人家的安卓手机。
 - 一台电脑。
-- 官方 ADB 工具，也就是 Android SDK Platform-Tools。
+- 官方 ADB 工具，也就是 Android SDK Platform-Tools。Agent 可以自动识别当前系统并下载对应版本。
 - 手机和电脑连接同一个 Wi-Fi，或用 USB 数据线连接。
 
 官方 ADB 下载页：
 
 https://developer.android.com/tools/releases/platform-tools
+
+Agent 自动下载时会先识别系统：
+
+| 当前系统 | 下载包 |
+|---|---|
+| macOS | `platform-tools-latest-darwin.zip` |
+| Windows | `platform-tools-latest-windows.zip` |
+| Linux | `platform-tools-latest-linux.zip` |
+
+默认下载到 `~/.codex/tools/android-platform-tools/`，不修改系统 PATH。
+
+## 重要提醒
+
+这个 Skill 包含删除、停用和关闭安装入口命令，但不会要求 Agent 自动执行。Agent 必须先给出清单、命令和影响说明，得到用户确认后再执行。
+
+对安装入口的默认交互是：
+
+```text
+1. com.android.browser - 系统浏览器不能安装 APK
+2. com.android.chrome - Chrome 不能安装 APK
+3. com.android.filemanager - 文件管理器不能安装 APK
+
+你可以回复：
+- 确认禁用全部
+- 确认禁用 1,3,5
+```
+
+这里的“禁用”指禁用 APK 安装权限，也就是执行 `REQUEST_INSTALL_PACKAGES ignore`，不是删除浏览器、应用商店或文件管理器本体。
+
+内置脚本：
+
+- `scripts/ensure_adb.py`：识别当前系统，缺少 ADB 时从 Google 官方地址下载对应版本的 Platform-Tools，并用 `adb version` 验证。
+- `scripts/collect_android_inventory.py`：只读盘点，不会删除、停用或修改手机里的任何 App。
+- `scripts/block_install_routes.py`：默认 dry-run，只列出将关闭的安装入口；用户确认后加 `--apply`，才会执行 `adb shell appops set <包名> REQUEST_INSTALL_PACKAGES ignore`。支持 `--select 1,3,5` 只禁用用户确认的编号。

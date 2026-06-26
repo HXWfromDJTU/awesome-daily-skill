@@ -2,6 +2,43 @@
 
 Use these commands only after confirming the target phone and package names. Show the impact and recovery command before changing anything.
 
+## Ensure ADB
+
+First identify the Agent runtime OS. Do not assume macOS.
+
+Preferred helper:
+
+```bash
+python3 scripts/ensure_adb.py --dry-run
+python3 scripts/ensure_adb.py
+```
+
+Manual OS checks:
+
+```bash
+uname -s
+```
+
+Windows PowerShell:
+
+```powershell
+$PSVersionTable.OS
+```
+
+Official Google Platform-Tools packages:
+
+| OS | URL |
+|---|---|
+| macOS / Darwin | `https://dl.google.com/android/repository/platform-tools-latest-darwin.zip` |
+| Windows | `https://dl.google.com/android/repository/platform-tools-latest-windows.zip` |
+| Linux | `https://dl.google.com/android/repository/platform-tools-latest-linux.zip` |
+
+Install into a user-scoped directory such as `~/.codex/tools/android-platform-tools/`. Do not modify PATH automatically. Verify with:
+
+```bash
+adb version
+```
+
 ## Connection
 
 ```bash
