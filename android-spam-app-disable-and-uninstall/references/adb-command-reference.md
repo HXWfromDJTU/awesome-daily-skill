@@ -33,6 +33,8 @@ adb shell dumpsys package <package> | findstr installer
 
 This should be done by the Agent with ADB where possible. Do not make the user manually tap settings unless the ADB command fails or the vendor blocks appops changes.
 
+For browsers, app stores, file managers, downloaders, and quick-app services, do not recommend deleting the app itself just because it is an install route. First disable only APK installation permission.
+
 Check:
 
 ```bash
@@ -56,9 +58,19 @@ Batch helper:
 ```bash
 python3 scripts/block_install_routes.py
 python3 scripts/block_install_routes.py --apply
+python3 scripts/block_install_routes.py --apply --select 1,3,5
 ```
 
-The first command is a dry run. The second command applies `REQUEST_INSTALL_PACKAGES ignore` to discovered install-route packages.
+The first command is a dry run and prints numbered install-route packages. The second command applies `REQUEST_INSTALL_PACKAGES ignore` to all discovered install-route packages. The third command applies only selected item numbers.
+
+User-facing confirmation wording:
+
+```text
+确认禁用全部
+确认禁用 1,3,5
+```
+
+In this context, `禁用` means disabling APK installation permission, not uninstalling or disabling the app package.
 
 If the command is unsupported or ineffective, provide manual settings:
 
@@ -146,6 +158,17 @@ adb shell pm list packages -d | findstr <package>
 ## Third-Party App Store Examples
 
 Only run commands for packages that were found on the phone.
+
+For app stores that are install routes, first block APK installation permission:
+
+```bash
+adb shell appops set com.tencent.android.qqdownloader REQUEST_INSTALL_PACKAGES ignore
+adb shell appops set com.baidu.appsearch REQUEST_INSTALL_PACKAGES ignore
+adb shell appops set com.qihoo.appstore REQUEST_INSTALL_PACKAGES ignore
+adb shell appops set com.wandoujia.phoenix2 REQUEST_INSTALL_PACKAGES ignore
+```
+
+Only uninstall a third-party app store if the user explicitly confirms that the parent does not need that app itself:
 
 ```bash
 adb uninstall com.tencent.android.qqdownloader

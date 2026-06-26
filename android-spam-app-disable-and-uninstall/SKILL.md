@@ -1,6 +1,6 @@
 ---
 name: "android-spam-app-disable-and-uninstall"
-description: "Use when helping a non-technical user clean a parent's Android phone via ADB: list non-system apps, identify installer sources, flag suspicious app installers, ask for confirmation, then uninstall, disable, hide app stores, or close APK installation routes with explicit ADB commands. Also usable by Codex or any other Agent that supports Skills."
+description: "Use when helping a non-technical user clean a parent's Android phone via ADB: list non-system apps, identify installer sources, flag suspicious app installers, ask for confirmation, close APK installation permissions on browsers/app stores/file managers/quick apps, and only then handle clearly unwanted apps. Also usable by Codex or any other Agent that supports Skills."
 ---
 
 # Android Spam App Disable And Uninstall
@@ -15,10 +15,12 @@ This Skill can be used by Codex or any other Agent that supports Skills, custom 
 - Do not flash firmware.
 - Do not factory reset.
 - Do not wipe photos, contacts, messages, WeChat data, or gallery data.
-- Do not automatically delete any app.
+- Do not automatically delete, disable, hide, or change any app.
 - Do not delete or disable phone, SMS, settings, launcher, system services, gallery, file manager, keyboard, WeChat, Alipay, banking, medical insurance, social security, or anti-fraud apps unless the user explicitly confirms after a risk explanation.
 - Before uninstalling, disabling, hiding, or closing install routes, show the package names, exact commands, expected impact, and recovery commands.
-- For app stores, browsers, file managers, downloaders, and quick-app services, first close install permissions when possible. Disable or current-user-uninstall only after the user confirms that the parent does not need to install apps independently.
+- For app stores, browsers, file managers, downloaders, and quick-app services, do not present the app itself as a deletion target just because it can install APK files. First recommend only disabling its APK installation permission with `REQUEST_INSTALL_PACKAGES ignore`.
+- In Chinese user-facing replies, call this action `禁用安装权限` or `禁止安装 APK`, not `删除`. If the user says `确认禁用`, interpret it as disabling APK installation permission unless they explicitly mention app-package disabling.
+- For install-route packages, always show a numbered list and accept simple confirmations: `确认禁用全部` or `确认禁用 1,3,5`. Do not ask the user to separately fill `确认删除 / 确认停用 / 确认保留` for the install-route step.
 
 ## Bundled Resources
 
@@ -102,24 +104,33 @@ Flag an app as suspicious when:
 
 If the installer is the official app store, do not automatically trust it. Ask whether the parent actually needs the app.
 
-### 4. Prepare A Confirmation List
+### 4. Prepare The Install-Route Confirmation List
 
-Pause before making changes. Ask the user to reply in this shape:
+After the read-only inventory, prioritize future install routes before discussing app deletion. Present install-route packages as a numbered list.
+
+Use this Chinese shape for ordinary users:
 
 ```text
-确认删除：
-1. App name - package
+建议先禁用这些 App 的“安装 APK 权限”。这不会删除 App，只是不让它们继续安装 APK。
 
-确认停用 / 隐藏：
-1. App store or quick-app service - package
+1. com.android.browser - 系统浏览器不能安装 APK
+2. com.android.chrome - Chrome 不能安装 APK
+3. com.android.filemanager - 文件管理器不能安装 APK
 
-确认保留：
-1. App name - package
+你可以回复：
+- 确认禁用全部
+- 确认禁用 1,3,5
 ```
 
-If the parent is unsure, keep the app.
+Rules for this step:
 
-### 5. Generate Commands For Confirmed Apps
+- `确认禁用全部` means run install-permission blocking for all numbered install-route packages.
+- `确认禁用 1,3,5` means run install-permission blocking only for those item numbers.
+- Do not mix this step with deletion, app-package disabling, hiding, or keep lists.
+- If the parent is unsure, do not change that package.
+- After this step, you may separately ask about clearly unwanted junk apps, but still require explicit confirmation before deletion or app-package disabling.
+
+### 5. Generate Commands For Confirmed Junk Apps
 
 Use the command patterns in `references/adb-command-reference.md`.
 
@@ -172,10 +183,16 @@ python3 scripts/block_install_routes.py
 
 Show the user the packages and commands it plans to run. Explain that this does not delete apps; it only blocks those apps from installing APK files.
 
-After the user confirms, apply it:
+If the user replies `确认禁用全部`, apply all numbered install-route packages:
 
 ```bash
 python3 scripts/block_install_routes.py --apply
+```
+
+If the user replies with item numbers, for example `确认禁用 1,3,5`, apply only those numbers:
+
+```bash
+python3 scripts/block_install_routes.py --apply --select 1,3,5
 ```
 
 For one-off manual command generation, use:
@@ -193,14 +210,14 @@ adb shell appops get <package> REQUEST_INSTALL_PACKAGES
 
 Expected result should include `ignore`.
 
-Only after the install permission is blocked, handle confirmed unwanted app stores or quick-app services:
+Do not uninstall app stores, browsers, file managers, downloaders, or quick-app services only because they are install routes. Only after install permission is blocked, and only if the user explicitly says the parent does not need the app itself, consider app-package disabling:
 
 ```bash
 adb shell am force-stop <package>
 adb shell pm disable-user --user 0 <package>
 ```
 
-If disable fails and the user confirms, use current-user uninstall:
+If disable fails and the user explicitly confirms the risk, use current-user uninstall only as a last resort:
 
 ```bash
 adb shell pm uninstall --user 0 <package>

@@ -7,9 +7,10 @@
 1. 通过 ADB 列出非系统 App。
 2. 标出每个 App 的安装来源。
 3. 高亮来路不明、浏览器下载、文件管理器安装、第三方市场安装的 App。
-4. 让用户和家人确认哪些要删、哪些要留。
-5. 再执行删除、当前用户移除、停用，或通过 ADB 直接关闭安装入口。
-6. 收尾时关闭 USB 调试、无线调试和开发者选项。
+4. 先把“未来安装入口”列成带序号的清单，让用户确认禁用哪些安装权限。
+5. 对浏览器、应用商店、文件管理器、快应用这类入口，默认只禁用 APK 安装权限，不引导删除 App 本体。
+6. 再处理家人明确确认不要的垃圾 App。
+7. 收尾时关闭 USB 调试、无线调试和开发者选项。
 
 ## 适用 Agent
 
@@ -46,7 +47,21 @@ https://developer.android.com/tools/releases/platform-tools
 
 这个 Skill 包含删除、停用和关闭安装入口命令，但不会要求 Agent 自动执行。Agent 必须先给出清单、命令和影响说明，得到用户确认后再执行。
 
+对安装入口的默认交互是：
+
+```text
+1. com.android.browser - 系统浏览器不能安装 APK
+2. com.android.chrome - Chrome 不能安装 APK
+3. com.android.filemanager - 文件管理器不能安装 APK
+
+你可以回复：
+- 确认禁用全部
+- 确认禁用 1,3,5
+```
+
+这里的“禁用”指禁用 APK 安装权限，也就是执行 `REQUEST_INSTALL_PACKAGES ignore`，不是删除浏览器、应用商店或文件管理器本体。
+
 内置脚本：
 
 - `scripts/collect_android_inventory.py`：只读盘点，不会删除、停用或修改手机里的任何 App。
-- `scripts/block_install_routes.py`：默认 dry-run，只列出将关闭的安装入口；用户确认后加 `--apply`，才会执行 `adb shell appops set <包名> REQUEST_INSTALL_PACKAGES ignore`。
+- `scripts/block_install_routes.py`：默认 dry-run，只列出将关闭的安装入口；用户确认后加 `--apply`，才会执行 `adb shell appops set <包名> REQUEST_INSTALL_PACKAGES ignore`。支持 `--select 1,3,5` 只禁用用户确认的编号。

@@ -8,7 +8,7 @@
 
 | Skill | 用途 |
 |---|---|
-| [`android-spam-app-disable-and-uninstall`](./android-spam-app-disable-and-uninstall/) | 帮父母清理安卓手机里的垃圾软件，列出安装来源，确认后删除或停用，并关闭容易诱导安装 App 的入口 |
+| [`android-spam-app-disable-and-uninstall`](./android-spam-app-disable-and-uninstall/) | 帮父母清理安卓手机里的垃圾软件，列出安装来源，优先禁用 APK 安装权限，再处理确认不要的 App |
 
 ## 推荐安装方式
 
@@ -31,4 +31,4 @@ Skill 目录是 android-spam-app-disable-and-uninstall，正式内容文件是 S
 - 不 root、不刷机、不恢复出厂设置。
 - 不自动删除任何 App。
 - 对微信、支付宝、银行、医保、社保、反诈、输入法、电话、短信、相册、系统桌面、系统设置等重要 App 默认保留。
-- 对卸载、停用、隐藏应用市场、关闭安装入口等动作，必须先展示命令和影响，再让用户确认。
+- 对卸载、停用、禁用 APK 安装权限等动作，必须先展示命令和影响，再让用户确认。

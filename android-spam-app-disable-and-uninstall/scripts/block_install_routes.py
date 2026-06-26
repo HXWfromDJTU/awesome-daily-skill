@@ -64,6 +64,7 @@ NEVER_TOUCH_PACKAGES = {
 
 @dataclass
 class RoutePackage:
+    index: int
     package: str
     reason: str
     before: str = ""
@@ -142,12 +143,24 @@ def discover_route_packages(adb_path: str, all_packages: set[str], extra_package
         else:
             routes.setdefault(package, "user-specified package, not found in package list")
 
-    return [RoutePackage(package=package, reason=reason) for package, reason in sorted(routes.items())]
+    return [
+        RoutePackage(index=index, package=package, reason=reason)
+        for index, (package, reason) in enumerate(sorted(routes.items()), start=1)
+    ]
 
 
 def print_table(routes: list[RoutePackage]) -> None:
-    headers = ["Package", "Reason", "Before", "After/Status"]
-    rows = [[route.package, route.reason, route.before or "-", route.after or route.status] for route in routes]
+    headers = ["No.", "Package", "Reason", "Before", "After/Status"]
+    rows = [
+        [
+            str(route.index),
+            route.package,
+            route.reason,
+            route.before or "-",
+            route.after or route.status,
+        ]
+        for route in routes
+    ]
     widths = [len(header) for header in headers]
     for row in rows:
         for index, value in enumerate(row):
@@ -158,11 +171,35 @@ def print_table(routes: list[RoutePackage]) -> None:
         print("| " + " | ".join(row[index].ljust(widths[index]) for index in range(len(headers))) + " |")
 
 
+def parse_selection(selection: str, max_index: int) -> set[int]:
+    selected: set[int] = set()
+    if not selection:
+        return selected
+    normalized = selection.replace("，", ",").replace("、", ",").replace(" ", "")
+    for part in normalized.split(","):
+        if not part:
+            continue
+        if "-" in part:
+            start_raw, end_raw = part.split("-", 1)
+            start = int(start_raw)
+            end = int(end_raw)
+            if start > end:
+                start, end = end, start
+            selected.update(range(start, end + 1))
+        else:
+            selected.add(int(part))
+    invalid = sorted(index for index in selected if index < 1 or index > max_index)
+    if invalid:
+        raise ValueError(f"Selection out of range: {', '.join(map(str, invalid))}")
+    return selected
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Dry-run or apply REQUEST_INSTALL_PACKAGES ignore for install-route packages.")
     parser.add_argument("--adb", default="adb", help="Path to adb executable. Defaults to adb on PATH.")
     parser.add_argument("--apply", action="store_true", help="Apply appops changes. Without this flag, only prints the plan.")
     parser.add_argument("--package", action="append", default=[], help="Additional package to include. Can be repeated.")
+    parser.add_argument("--select", default="", help="Apply only selected dry-run item numbers, for example 1,3,5 or 1-4. Defaults to all.")
     args = parser.parse_args()
 
     code, out, err = adb(args.adb, "devices", "-l")
@@ -185,6 +222,14 @@ def main() -> int:
         print("No install-route packages discovered.")
         return 0
 
+    if args.select:
+        try:
+            selected = parse_selection(args.select, len(routes))
+        except ValueError as exc:
+            print(str(exc), file=sys.stderr)
+            return 2
+        routes = [route for route in routes if route.index in selected]
+
     print("# Install Route Permission Plan")
     print(f"\nMode: {'APPLY' if args.apply else 'DRY RUN'}")
     print("\nThis only changes the APK installation permission appop. It does not uninstall apps.\n")
@@ -206,9 +251,16 @@ def main() -> int:
     print_table(routes)
 
     if not args.apply:
-        print("\nAfter the user confirms, run:")
+        print("\nAsk the user to reply with one of these:")
+        print("- 确认禁用全部")
+        print("- 确认禁用 1,3,5")
+        print("\nAfter the user confirms all items, run:")
         print("\n```bash")
         print("python3 scripts/block_install_routes.py --apply")
+        print("```")
+        print("\nAfter the user confirms selected item numbers, run:")
+        print("\n```bash")
+        print("python3 scripts/block_install_routes.py --apply --select 1,3,5")
         print("```")
     return 0
 
