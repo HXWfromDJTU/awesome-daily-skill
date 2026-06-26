@@ -1,11 +1,11 @@
 ---
 name: "android-spam-app-disable-and-uninstall"
-description: "Use when helping a non-technical user clean a parent's Android phone via ADB: list non-system apps, identify installer sources, flag suspicious app installers, ask for confirmation, close APK installation permissions on browsers/app stores/file managers/quick apps, and only then handle clearly unwanted apps. Also usable by Codex or any other Agent that supports Skills."
+description: "Use when helping a non-technical user clean a parent's Android phone via ADB: list installed apps, identify installer sources, group important and suspicious apps without hiding them, ask for confirmation, close APK installation permissions on browsers/app stores/file managers/quick apps, and only then handle clearly unwanted apps. Also usable by Codex or any other Agent that supports Skills."
 ---
 
 # Android Spam App Disable And Uninstall
 
-Help a non-technical user clean junk apps from a parent's Android phone with ADB. Keep the tone simple and family-friendly, but always provide concrete commands for actions.
+Help a non-technical user clean junk apps from a parent's Android phone with ADB. Keep the tone simple and family-friendly, list apps transparently, and always provide concrete commands for actions.
 
 This Skill can be used by Codex or any other Agent that supports Skills, custom workflows, or GitHub-based Skill installation, such as Workbuddy, Qclaw, Claude, or Mavis-style agents.
 
@@ -22,13 +22,14 @@ This Skill can be used by Codex or any other Agent that supports Skills, custom 
 - In Chinese user-facing replies, call this action `禁用安装权限` or `禁止安装 APK`, not `删除`. If the user says `确认禁用`, interpret it as disabling APK installation permission unless they explicitly mention app-package disabling.
 - For install-route packages, always show a numbered list and accept simple confirmations: `确认禁用全部` or `确认禁用 1,3,5`. Do not ask the user to separately fill `确认删除 / 确认停用 / 确认保留` for the install-route step.
 - For junk-app deletion candidates, always show a numbered table before asking the user to choose. The table must prioritize the app's UI display name, then installer source, install time, package name, and the deletion recommendation.
+- Do not omit apps from the review table just because they look important, common, official, financial, map-related, carrier-related, keyboard-related, or installed from an official app store. List them and put them in an `重要/谨慎` or `普通复核` group with a conservative recommendation instead of making the decision for the user.
 - Do not accept `全部删除`, `全删`, or similar blanket deletion requests for app deletion. Explain that app deletion is riskier than closing install permissions, and ask the user to choose explicit item numbers such as `请删除 1、2、4`.
-- Never delete apps immediately after the user's first numbered selection. First repeat the selected apps by number, UI name, package, command, and impact, then ask for a second confirmation. Execute only after the user confirms that second list.
+- Never delete apps immediately after the user's first numbered selection. First repeat the selected apps by number, UI name when available, package, command, and impact, then ask for a second confirmation. If the UI name is unavailable, write `未读取到，以包名为准`; do not ask the user to manually look up and retype the name. Execute only after the user replies `确认删除`.
 
 ## Bundled Resources
 
 - Use `scripts/ensure_adb.py` to detect the Agent's current OS and install the matching official Android SDK Platform-Tools package when `adb` is missing.
-- Use `scripts/collect_android_inventory.py` to collect a read-only inventory when Python is available. It prints numbered third-party apps with app name, installer, install time, update time, package, and suggestion when the device exposes that metadata.
+- Use `scripts/collect_android_inventory.py` to collect a read-only inventory when Python is available. It prints numbered apps with group, app name, installer, install time, update time, package, and suggestion when the device exposes that metadata. Use `--include-system` when the user wants a complete review table that also includes important/system-looking apps.
 - Use `scripts/block_install_routes.py` to generate or apply ADB commands that set install-route packages to `REQUEST_INSTALL_PACKAGES ignore`.
 - Read `references/adb-command-reference.md` when you need exact command templates for uninstalling, disabling, restoring, appops, and verification.
 - Read `references/vendor-package-candidates.md` when you need common package candidates for domestic Android vendors and third-party app stores.
@@ -106,6 +107,14 @@ Prefer the bundled script when Python is available:
 python3 scripts/collect_android_inventory.py
 ```
 
+For a complete review where the user does not want the Agent to hide important-looking apps, use:
+
+```bash
+python3 scripts/collect_android_inventory.py --include-system
+```
+
+This may produce a longer table. It is still read-only.
+
 If Python is unavailable, run the core commands manually:
 
 ```bash
@@ -130,14 +139,22 @@ On Windows PowerShell, replace `grep` with `findstr`.
 
 ### 4. Classify Apps For The User
 
-Present a plain-language table:
+Present plain-language tables. You may split the result into groups, but keep one stable numbering sequence across all groups if the user may select items by number.
 
-| Suggestion | App clue | Package | Installer source | Why |
+| Group | App clue | Package | Installer source | Recommendation |
 |---|---|---|---|---|
-| Keep | WeChat / Alipay / banking | package | official store or known source | Parent likely needs it |
-| Ask parent | Maps / shopping / video | package | official store | May be useful |
-| High-risk removable | cleaner / booster / free Wi-Fi / red packet / pop-up ads | package | unknown, browser, file manager, downloader, or third-party store | Common adware pattern |
-| Do not touch yet | keyboard / phone / SMS / system settings | package | system or protected source | Could affect normal phone use |
+| 重点复核 | cleaner / booster / free Wi-Fi / red packet / pop-up ads | package | unknown, browser, file manager, downloader, or third-party store | Confirm whether parent needs it; likely removable if unused |
+| 安装入口 | browsers / app stores / file managers / quick apps | package | system or official source | First disable APK install permission, do not delete the app body by default |
+| 重要/谨慎 | WeChat / Alipay / banking / insurance / maps / keyboard / carrier / phone / SMS / settings | package | any source | List it, but mark deletion as high-risk and default keep |
+| 普通复核 | shopping / video / tools / official-store apps | package | official store or known source | Ask whether parent actually uses it |
+
+Do not write user-facing text like:
+
+```text
+没有把微信、支付宝、输入法、运营商、银行/保险、地图、电话短信设置类放进删除候选。
+```
+
+Instead, list those apps in the table under `重要/谨慎` with a clear reason and recommendation. The Agent should inform, not decide silently.
 
 Flag an app as suspicious when:
 
@@ -232,20 +249,22 @@ If ADB cannot reliably change a vendor setting, provide a manual route as a fall
 - Settings > Browser > Download / Security settings > turn off APK auto install.
 - Settings > Quick apps > Manage > disable service when available.
 
-### 7. Present Deletion Candidates As A Numbered Table
+### 7. Present Full App Review As Numbered Tables
 
 Only enter this step after install routes have been reviewed, or when the user explicitly asks to continue deleting junk apps.
 
-Do not show deletion candidates as a plain bullet list of package names. For ordinary users, package names are only supporting details. Always show a numbered table in Chinese:
+Do not show deletion candidates as a plain bullet list of package names. Do not hide important-looking apps. For ordinary users, package names are only supporting details. Always show numbered tables in Chinese:
 
 ```text
-继续删除垃圾应用前，我复核了一遍：这些只是“可能不需要”的候选，不建议全部删除。请只选择你确认不要的编号。
+继续删除前，我把应用按风险分组列出来。这里不是让你全部删除，而是让你看清楚每个 App 的来源和建议。请只选择你确认不要的编号。
 
-| 编号 | App 名称 | 安装来源 | 安装时间 | 包名 | 删除建议 |
-|---|---|---|---|---|---|
-| 1 | LED 跑马灯 | com.bbk.appstore / vivo 应用商店 | 2026-06-18 10:20 | com.devfire.ledbanner | 非必要工具，问过机主不用后可删 |
-| 2 | 第三方天气 | unknown / 未读取到 | 2026-05-02 08:11 | com.zdbq.ljtq.ljweather | 非系统天气，若不用可删 |
-| 3 | 临时邮箱 | browser / 浏览器下载 | 2026-06-20 21:03 | com.temporary.email.pro | 用途偏临时，确认不用后可删 |
+| 编号 | 分组 | App 名称 | 安装来源 | 安装时间 | 包名 | 删除建议 |
+|---|---|---|---|---|---|---|
+| 1 | 重点复核 | LED 跑马灯 | com.bbk.appstore / vivo 应用商店 | 2026-06-18 10:20 | com.devfire.ledbanner | 非必要工具，问过机主不用后可删 |
+| 2 | 重点复核 | 第三方天气 | unknown / 未读取到 | 2026-05-02 08:11 | com.zdbq.ljtq.ljweather | 非系统天气，若不用可删 |
+| 3 | 重要/谨慎 | 微信 | com.tencent.mm / 安装来源见清单 | 2025-12-01 09:10 | com.tencent.mm | 常用通讯 App，默认保留；确认不用才处理 |
+| 4 | 重要/谨慎 | 输入法 | com.bbk.appstore / vivo 应用商店 | 2025-10-03 12:30 | com.sohu.inputmethod.sogou.vivo | 可能影响打字，默认保留；确认不用才处理 |
+| 5 | 普通复核 | 短视频 App | com.bbk.appstore / vivo 应用商店 | 2026-06-20 21:03 | com.kaixinkan.ugc.video.atom | 如果家人不用，可考虑删除 |
 
 你可以回复：请删除 1、2、4
 不建议回复：全部删除
@@ -254,7 +273,8 @@ Do not show deletion candidates as a plain bullet list of package names. For ord
 Table rules:
 
 - `编号`: stable item number for this deletion-candidate round.
-- `App 名称`: put the app's UI display name first. If ADB cannot read it, write `未知，请在手机应用列表核对`, and ask the user to verify the visible name before deleting.
+- `分组`: use `重点复核`, `安装入口`, `重要/谨慎`, or `普通复核`.
+- `App 名称`: put the app's UI display name first. If ADB cannot read it, write `未读取到，以包名为准`. Do not require the user to open phone settings and retype the visible name just because ADB did not expose it.
 - `安装来源`: show the raw installer package and a plain-language explanation when known, for example `com.bbk.appstore / vivo 应用商店`, `com.android.browser / 浏览器下载`, or `unknown / 未读取到`.
 - `安装时间`: use `firstInstallTime` from `dumpsys package` when available. If unavailable, write `未读取到`.
 - `包名`: show the package name, but do not make it the first thing ordinary users see.
@@ -264,7 +284,8 @@ Selection rules:
 
 - Accept `请删除 1、2、4`, `删除 1,2,4`, or similar explicit number selections.
 - If the user says `全部删除`, `全删`, or gives no numbers, do not continue. Reply that app deletion should not be done in bulk and ask for explicit item numbers.
-- If a selected app name is unknown or ambiguous, ask the user to confirm the visible phone UI name before including it in the deletion confirmation.
+- If a selected app name is unavailable, still continue to the second-confirmation list using the original number, package name, installer source, install time, and deletion command.
+- If the user selects an `重要/谨慎` item, do not refuse or silently remove it from the selection. Include a stronger risk note in the second-confirmation list, then let the user decide with `确认删除`.
 
 ### 8. Second Confirm And Delete Confirmed Apps
 
@@ -273,19 +294,56 @@ After the user gives deletion numbers, do not execute commands yet. First produc
 ```text
 我还不会马上删除。请你二次确认是否删除下面这几个 App：
 
-1. LED 跑马灯
+1. 编号 6 - Netflix 相关 App
+   App 名称：未读取到，以包名为准
+   包名：com.netflixgc.app
+   安装来源：com.android.packageinstaller / APK 安装器
+   安装时间：未读取到
+   将执行：adb uninstall com.netflixgc.app
+
+2. 编号 8 - vivo 浏览器小说组件
+   App 名称：未读取到，以包名为准
+   包名：com.vivo.browser.novel.widget
+   安装来源：com.bbk.appstore / vivo 应用商店
+   安装时间：未读取到
+   将执行：adb uninstall com.vivo.browser.novel.widget
+
+如果确认删除，请回复：确认删除
+如果不确定，请回复：先不删
+```
+
+If the user selected an `重要/谨慎` item, keep it in the confirmation list and add a risk note:
+
+```text
+3. 编号 4 - 输入法
+   包名：com.sohu.inputmethod.sogou.vivo
+   安装来源：com.bbk.appstore / vivo 应用商店
+   安装时间：2025-10-03 12:30
+   风险提醒：删除后可能影响打字。确认家人不用这个输入法后再删。
+   将执行：adb uninstall com.sohu.inputmethod.sogou.vivo
+
+如果确认删除，请回复：确认删除
+如果不确定，请回复：先不删
+```
+
+If app names are available, include them directly:
+
+```text
+我还不会马上删除。请你二次确认是否删除下面这几个 App：
+
+1. 编号 1 - LED 跑马灯
    包名：com.devfire.ledbanner
    安装来源：com.bbk.appstore / vivo 应用商店
    安装时间：2026-06-18 10:20
    将执行：adb uninstall com.devfire.ledbanner
 
-2. 临时邮箱
+2. 编号 3 - 临时邮箱
    包名：com.temporary.email.pro
    安装来源：com.android.browser / 浏览器下载
    安装时间：2026-06-20 21:03
    将执行：adb uninstall com.temporary.email.pro
 
-如果确认删除以上 2 个 App，请回复：确认删除以上 2 个 App
+如果确认删除，请回复：确认删除
 如果不确定，请回复：先不删
 ```
 

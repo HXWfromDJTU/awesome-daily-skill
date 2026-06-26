@@ -74,18 +74,20 @@ Preferred helper:
 
 ```bash
 python3 scripts/collect_android_inventory.py
+python3 scripts/collect_android_inventory.py --include-system
 ```
 
-The helper is read-only and prints third-party apps with numbered rows, app name when available, installer, install time, update time, package, and suggestion.
+The helper is read-only. The default command prints third-party apps. `--include-system` prints a broader table that also includes system/important-looking apps so the Agent does not silently omit WeChat, Alipay, keyboards, carrier apps, banking/insurance apps, maps, phone, SMS, settings, and similar packages.
 
 ## Deletion Candidate Confirmation
 
-Before deleting any app, show a numbered table:
+Before deleting any app, show a numbered review table. Do not hide important-looking apps; put them in a conservative group instead.
 
 ```text
-| 编号 | App 名称 | 安装来源 | 安装时间 | 包名 | 删除建议 |
-|---|---|---|---|---|---|
-| 1 | LED 跑马灯 | com.bbk.appstore / vivo 应用商店 | 2026-06-18 10:20 | com.devfire.ledbanner | 非必要工具，确认不用后可删 |
+| 编号 | 分组 | App 名称 | 安装来源 | 安装时间 | 包名 | 删除建议 |
+|---|---|---|---|---|---|---|
+| 1 | 重点复核 | LED 跑马灯 | com.bbk.appstore / vivo 应用商店 | 2026-06-18 10:20 | com.devfire.ledbanner | 非必要工具，确认不用后可删 |
+| 2 | 重要/谨慎 | 输入法 | com.bbk.appstore / vivo 应用商店 | 2025-10-03 12:30 | com.sohu.inputmethod.sogou.vivo | 可能影响打字，默认保留，确认不用才处理 |
 ```
 
 Ask the user to choose explicit numbers:
@@ -106,13 +108,38 @@ After the user chooses numbers, do not execute yet. Repeat the selected apps and
 ```text
 我还不会马上删除。请你二次确认是否删除下面这几个 App：
 
-1. LED 跑马灯
+1. 编号 1 - LED 跑马灯
    包名：com.devfire.ledbanner
    安装来源：com.bbk.appstore / vivo 应用商店
    安装时间：2026-06-18 10:20
    将执行：adb uninstall com.devfire.ledbanner
 
-如果确认删除以上 1 个 App，请回复：确认删除以上 1 个 App
+如果确认删除，请回复：确认删除
+```
+
+If ADB cannot read the UI display name, do not block on manual name lookup. Keep the original selected number and package details:
+
+```text
+1. 编号 8 - App 名称未读取到，以包名为准
+   包名：com.vivo.browser.novel.widget
+   安装来源：com.bbk.appstore / vivo 应用商店
+   安装时间：未读取到
+   将执行：adb uninstall com.vivo.browser.novel.widget
+
+如果确认删除，请回复：确认删除
+```
+
+For an important/cautious item, do not drop it from the user's selection and do not ask the user to manually retype app names. Keep it selected but add a risk note in the same second confirmation:
+
+```text
+2. 编号 2 - 输入法
+   包名：com.sohu.inputmethod.sogou.vivo
+   安装来源：com.bbk.appstore / vivo 应用商店
+   安装时间：2025-10-03 12:30
+   风险提醒：删除后可能影响打字。确认家人不用这个输入法后再删。
+   将执行：adb uninstall com.sohu.inputmethod.sogou.vivo
+
+如果确认删除，请回复：确认删除
 ```
 
 ## Unknown APK Install Permission

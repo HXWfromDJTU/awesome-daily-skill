@@ -47,6 +47,57 @@ SUSPICIOUS_PACKAGE_HINTS = (
     "game",
 )
 
+PROTECTED_EXACT_PACKAGES = {
+    "com.android.contacts": "重要：联系人",
+    "com.android.dialer": "重要：电话",
+    "com.android.incallui": "重要：通话界面",
+    "com.android.launcher": "重要：桌面",
+    "com.android.mms": "重要：短信",
+    "com.android.phone": "重要：电话服务",
+    "com.android.providers.contacts": "重要：联系人存储",
+    "com.android.settings": "重要：系统设置",
+    "com.android.systemui": "重要：系统界面",
+    "com.eg.android.AlipayGphone": "重要：支付宝",
+    "com.tencent.mm": "重要：微信",
+    "com.unionpay.tsmservice": "重要：银联",
+}
+
+PROTECTED_PACKAGE_HINTS = (
+    "10010",
+    "10086",
+    "189",
+    "alipay",
+    "bank",
+    "bankcomm",
+    "bocom",
+    "ccb",
+    "chinamobile",
+    "cmbc",
+    "cmb",
+    "cmbchina",
+    "contacts",
+    "ctclient",
+    "dialer",
+    "gallery",
+    "icbc",
+    "ime",
+    "input",
+    "insurance",
+    "keyboard",
+    "launcher",
+    "map",
+    "mms",
+    "phone",
+    "settings",
+    "sms",
+    "sinovatech",
+    "telecom",
+    "telephony",
+    "unionpay",
+    "unicom",
+    "wechat",
+)
+
 VENDOR_CANDIDATES = {
     "Huawei app market": "com.huawei.appmarket",
     "Huawei quick app": "com.huawei.fastapp",
@@ -82,6 +133,7 @@ class PackageInfo:
     app_name: str = ""
     first_install_time: str = ""
     last_update_time: str = ""
+    group: str = ""
     suggestion: str = ""
 
 
@@ -184,18 +236,29 @@ def fill_package_metadata(adb_path: str, pkg: PackageInfo) -> None:
         pkg.installer = parse_dumpsys_field(out, "installerPackageName")
 
 
-def classify(package: str, installer: str) -> str:
+def package_has_hint(package: str, hints: tuple[str, ...]) -> bool:
+    package_l = package.lower()
+    return any(hint in package_l for hint in hints)
+
+
+def classify(package: str, installer: str) -> tuple[str, str]:
     package_l = package.lower()
     installer_l = installer.lower()
+    if package in PROTECTED_EXACT_PACKAGES:
+        return "重要/谨慎", f"{PROTECTED_EXACT_PACKAGES[package]}，默认保留；若确实不用，也必须二次确认"
+    if package_has_hint(package, PROTECTED_PACKAGE_HINTS):
+        return "重要/谨慎", "像通信、支付、银行保险、地图、输入法、桌面或设置类；默认保留，确认不用才处理"
+    if package in VENDOR_CANDIDATES.values():
+        return "安装入口", "先禁用安装 APK 权限，不建议直接删除 App 本体"
     if installer in OFFICIAL_INSTALLERS:
-        return "ask: official store installed, confirm whether parent needs it"
+        return "普通复核", "官方应用商店安装，也要确认家人是否真的需要"
     if not installer:
-        return "review: installer unknown or empty"
+        return "重点复核", "安装来源未知或未读取到，建议确认用途"
     if any(hint in installer_l for hint in SUSPICIOUS_INSTALLER_HINTS):
-        return "high-risk: installed by browser/file/downloader/third-party route"
+        return "重点复核", "来自浏览器、文件管理器、下载器或第三方安装入口"
     if any(hint in package_l for hint in SUSPICIOUS_PACKAGE_HINTS):
-        return "review: package name looks like cleaner/booster/ad/quick-app"
-    return "ask: confirm with parent"
+        return "重点复核", "包名像清理、加速、广告、快应用、游戏或 Wi-Fi 类"
+    return "普通复核", "请和家人确认是否还需要"
 
 
 def markdown_table(rows: list[list[str]]) -> str:
@@ -214,6 +277,7 @@ def markdown_table(rows: list[list[str]]) -> str:
 def main() -> int:
     parser = argparse.ArgumentParser(description="Collect a read-only Android app inventory via ADB.")
     parser.add_argument("--adb", default="adb", help="Path to adb executable. Defaults to adb on PATH.")
+    parser.add_argument("--include-system", action="store_true", help="Include system packages in the review table.")
     parser.add_argument("--no-deep-source", action="store_true", help="Do not call get-install-source for each app.")
     parser.add_argument("--no-metadata", action="store_true", help="Do not call dumpsys package for app name and install time.")
     args = parser.parse_args()
@@ -248,9 +312,11 @@ def main() -> int:
         _, value, _ = shell(args.adb, "getprop", prop)
         print(f"- {label}: {value or 'unknown'}")
 
-    code, packages_out, packages_err = shell(args.adb, "pm", "list", "packages", "-3", "-i", timeout=60)
+    package_list_args = ["pm", "list", "packages", "-i"] if args.include_system else ["pm", "list", "packages", "-3", "-i"]
+    code, packages_out, packages_err = shell(args.adb, *package_list_args, timeout=60)
     if code != 0:
-        print(f"\nFailed to list third-party packages: {packages_err or packages_out}", file=sys.stderr)
+        package_scope = "all packages" if args.include_system else "third-party packages"
+        print(f"\nFailed to list {package_scope}: {packages_err or packages_out}", file=sys.stderr)
         return code or 1
 
     packages = parse_packages_with_installers(packages_out)
@@ -266,21 +332,24 @@ def main() -> int:
             fill_package_metadata(args.adb, pkg)
 
     for pkg in packages:
-        pkg.suggestion = classify(pkg.package, pkg.installer)
+        pkg.group, pkg.suggestion = classify(pkg.package, pkg.installer)
 
-    print("\n## Third-Party Packages\n")
-    rows = [["No.", "App name", "Installer", "First install", "Last update", "Package", "Suggestion"]]
-    for index, pkg in enumerate(sorted(packages, key=lambda item: (item.suggestion, item.package)), start=1):
+    section_title = "All Packages" if args.include_system else "Third-Party Packages"
+    print(f"\n## {section_title}\n")
+    rows = [["No.", "Group", "App name", "Installer", "First install", "Last update", "Package", "Suggestion"]]
+    for index, pkg in enumerate(sorted(packages, key=lambda item: (item.group, item.suggestion, item.package)), start=1):
         rows.append([
             str(index),
-            pkg.app_name or "(unknown; check phone UI)",
-            pkg.installer or "(unknown)",
-            pkg.first_install_time or "(unknown)",
-            pkg.last_update_time or "(unknown)",
+            pkg.group,
+            pkg.app_name or "未读取到，以包名为准",
+            pkg.installer or "未读取到",
+            pkg.first_install_time or "未读取到",
+            pkg.last_update_time or "未读取到",
             pkg.package,
             pkg.suggestion,
         ])
-    print(markdown_table(rows) if len(rows) > 1 else "No third-party packages found.")
+    empty_message = "No packages found." if args.include_system else "No third-party packages found."
+    print(markdown_table(rows) if len(rows) > 1 else empty_message)
 
     code, all_packages_out, _ = shell(args.adb, "pm", "list", "packages", timeout=60)
     all_packages = {line.removeprefix("package:").strip() for line in all_packages_out.splitlines() if line.startswith("package:")}
